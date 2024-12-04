@@ -1,0 +1,231 @@
+import numpy as np;
+import pandas as pd;
+from sklearn.model_selection import  train_test_split
+
+match = pd.read_csv('matches.csv')
+delilveries= pd.read_csv('deliveries.csv')
+
+match.head()
+
+delilveries.head()
+
+match.shape
+
+delilveries.shape
+
+total_score_df = delilveries.groupby(['match_id','inning']).sum()['total_runs'].reset_index()
+total_score_df
+
+total_score_df= total_score_df[total_score_df['inning']==1]
+total_score_df
+
+match_df= match.merge(total_score_df[['match_id','total_runs']],left_on='id',right_on="match_id")
+
+match_df
+
+match_df["team1"].unique()
+
+teams = [
+    'Sunrisers Hyderabad',
+    'Mumbai Indians',
+    'Royal Challengers Bangalore',
+    'Kolkata Knight Riders',
+    'Kings XI Punjab',
+    'Chennai Super Kings',
+    'Rajasthan Royals',
+    'Delhi Capitals'
+]
+
+match_df['team1'] = match_df['team1'].str.replace('Delhi Daredevils','Delhi Capitals')
+match_df['team2'] = match_df['team2'].str.replace('Delhi Daredevils','Delhi Capitals')
+
+match_df['team1'] = match_df['team1'].str.replace('Deccan Chargers','Sunrisers Hyderabad')
+match_df['team2'] = match_df['team2'].str.replace('Deccan Chargers','Sunrisers Hyderabad')
+
+match_df = match_df[match_df['team1'].isin(teams)]
+match_df = match_df[match_df['team2'].isin(teams)]
+
+match_df["team1"].unique()
+match_df["team2"].unique()
+
+match_df.head()
+
+match_df=match_df[['match_id','city','winner','total_runs']]
+match_df
+
+delivery_df=match_df.merge(delilveries,on='match_id')
+delivery_df
+
+delivery_df= delivery_df[delivery_df['inning']==2]
+delivery_df
+
+delivery_df['total_runs_y']= pd.to_numeric(delivery_df['total_runs_y'], errors='coerce')
+delivery_df 
+
+print(delivery_df['total_runs_y'].dtype)
+#print(delivery_df['total_runs_x'].dtype)
+
+delivery_df['current_score']= delivery_df.groupby('match_id')['total_runs_y'].cumsum(numeric_only=True)
+delivery_df['current_score']
+
+delivery_df.head()
+
+delivery_df['runs_left']= delivery_df['total_runs_x']-delivery_df['current_score']
+delivery_df['balls_left']=120-(delivery_df['over']*6+delivery_df['ball'])
+
+delivery_df.head()
+
+delivery_df.columns
+
+delivery_df["player_dismissed"]
+
+delivery_df.loc[:, 'player_dismissed'] = delivery_df['player_dismissed'].fillna("0")
+delivery_df.loc[:, 'fielder'] = delivery_df['fielder'].fillna("0")
+delivery_df.loc[:, 'dismissal_kind'] = delivery_df['dismissal_kind'].fillna("0")
+
+delivery_df.loc[:, 'player_dismissed'] = delivery_df['player_dismissed'].apply(lambda x: 1 if x != "0" else 0)
+delivery_df['player_dismissed'] = delivery_df['player_dismissed'].astype(int)
+print(delivery_df['player_dismissed'].dtype)
+
+wickets = delivery_df.groupby('match_id')['player_dismissed'].cumsum()
+delivery_df['wickets'] = 10 - wickets
+
+print(delivery_df.head())
+
+delivery_df.loc[:, 'crr'] = np.where(
+    (120 - delivery_df['balls_left']) > 0,  # Check if balls left is greater than 0
+    (delivery_df['current_score'] * 6) / (120 - delivery_df['balls_left']),  # Calculate CRR
+    0  # Set to 0 or np.nan if division by zero would occur
+)
+
+delivery_df.loc[:, 'rrr'] = (delivery_df['runs_left'] * 6) / delivery_df['balls_left']
+
+def result(row):
+    """Return 1 if batting_team is the winner, otherwise return 0."""
+    return 1 if row['batting_team'] == row['winner'] else 0
+
+delivery_df['result'] = delivery_df.apply(result, axis=1)
+
+
+delivery_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+delivery_df.dropna(axis=0, inplace=True)
+delivery_df.reset_index(drop=True, inplace=True)
+
+print(delivery_df)
+
+columns_to_delete = ['match_id', 'winner', 'inning', 'over', 'ball']
+reduced_df = delivery_df.drop(columns=columns_to_delete)
+
+reduced_df.columns.to_numpy()
+
+ENCODING
+
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+
+selected_columns = [ 'batting_team',
+                    'bowling_team',
+                    'city',
+                    'runs_left',
+                    'balls_left',
+                    'wickets',
+                    'total_runs_x',
+                    'crr','rrr',
+                    'result',
+                    'batter', 
+                    'non_striker',
+                    'bowler',
+                    'batsman_runs',
+                    'extra_runs',
+                    'total_runs_y',
+                    'player_dismissed',
+                    'dismissal_kind',
+                    'fielder',
+                    'current_score',
+                    'extras_type']
+
+
+existing_columns = [col for col in selected_columns if col  in reduced_df.columns]
+
+data_subset = reduced_df[existing_columns]
+existing_columns
+
+Label Hot Encoding
+
+label_encoder = LabelEncoder()
+for col in data_subset.columns:
+    if data_subset[col].dtype == 'object':
+        data_subset[col] = label_encoder.fit_transform(data_subset[col])
+
+LogisticRegression
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+
+pipe = Pipeline(steps=[
+    ('step1',trf),
+    ('step2',LogisticRegression(solver='liblinear'))
+])
+
+pipe.fit(X_train,y_train)
+y_pred = pipe.predict(X_test)
+y_pred_with_train_Logestic=pipe.predict(X_train)
+
+from sklearn.metrics import accuracy_score
+accuracy_score(y_test,y_pred)
+
+
+y_train_pred = pipe.predict(X_train)
+
+train_accuracy = accuracy_score(y_train, y_train_pred)
+print("Training Accuracy:", train_accuracy)
+
+pipe.predict_proba(X_test)[4]
+
+
+SVM clasifer
+
+from sklearn.svm import SVC
+print("Training Linear SVM...")
+pipeSvm = Pipeline(steps=[
+    ('step1',trf),
+    ('step2',SVC(kernel='linear', probability=True, random_state=42))
+])
+
+pipeSvm.fit(X_train, y_train)
+y_pred = pipeSvm.predict(X_test)
+y_pred_with_train=pipeSvm.predict(X_train)
+
+from sklearn.metrics import accuracy_score
+accuracy_score(y_test,y_pred)
+
+pipeSvm.predict_proba(X_test)[2]
+
+Evaluation
+
+from sklearn.metrics import accuracy_score ,f1_score,precision_score ,recall_score
+
+def training_scores(y_act,y_pred):
+    acc=round(accuracy_score(y_act,y_pred),3)
+    pr= round(precision_score(y_act,y_pred),3)
+    rec= round(recall_score(y_act,y_pred),3)
+    f1=round(f1_score(y_act,y_pred),3)
+    print(f'Training Score:\n\tAccuracy ={acc}\n\tPrecision={pr}\n\tRecall={rec}\n\tF1score={f1}')
+
+def validation_Scores(y_act,y_pred):
+    acc=round(accuracy_score(y_act,y_pred),3)
+    pr= round(precision_score(y_act,y_pred),3)
+    rec= round(recall_score(y_act,y_pred),3)
+    f1=round(f1_score(y_act,y_pred),3)
+    print(f'Training Score:\n\tAccuracy ={acc}\n\tPrecision={pr}\n\tRecall={rec}\n\tF1score={f1}')
+
+training_scores(y_train,y_pred_with_train_Logestic)
+validation_Scores(y_pred,y_test)
+training_scores(y_train,y_pred_with_train)
+validation_Scores(y_pred,y_test)
+
+Save Models
+
+import pickle
+with open('C:/Users/parak/machinelaerningProject/Static/pickle','wb') as file:
+  pickle.dump(pipe,file)
